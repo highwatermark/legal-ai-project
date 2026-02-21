@@ -376,14 +376,14 @@ class TestTODO6_BusinessAnalystPersona(unittest.TestCase):
 
     def test_business_analyst_persona_exists(self):
         """Test that business analyst persona is defined."""
-        persona = self.personas.get_persona("business_analyst")
+        persona = self.personas.get_persona("IP_Litigation_Expert")
 
         self.assertIsNotNone(persona, "Business analyst persona should exist")
         self.assertIsInstance(persona, str, "Persona should be a string")
 
     def test_business_analyst_persona_quality(self):
         """Test business analyst persona meets quality criteria."""
-        persona = self.personas.get_persona("business_analyst")
+        persona = self.personas.get_persona("IP_Litigation_Expert")
         validation = self.personas.validate_persona(persona)
 
         # Check validation criteria
@@ -404,7 +404,7 @@ class TestTODO6_BusinessAnalystPersona(unittest.TestCase):
 
     def test_business_analyst_specific_content(self):
         """Test business analyst has specific required content."""
-        persona = self.personas.get_persona("business_analyst")
+        persona = self.personas.get_persona("IP_Litigation_Expert")
 
         # Should mention quantitative analysis
         self.assertIn("quantitative", persona.lower(),
@@ -433,14 +433,14 @@ class TestTODO7_MarketResearcherPersona(unittest.TestCase):
 
     def test_market_researcher_persona_exists(self):
         """Test that market researcher persona is defined."""
-        persona = self.personas.get_persona("market_researcher")
+        persona = self.personas.get_persona("IP_Valuation_Specialist")
 
         self.assertIsNotNone(persona, "Market researcher persona should exist")
         self.assertIsInstance(persona, str, "Persona should be a string")
 
     def test_market_researcher_persona_quality(self):
         """Test market researcher persona meets quality criteria."""
-        persona = self.personas.get_persona("market_researcher")
+        persona = self.personas.get_persona("IP_Valuation_Specialist")
         validation = self.personas.validate_persona(persona)
 
         # Check all validation criteria
@@ -461,7 +461,7 @@ class TestTODO7_MarketResearcherPersona(unittest.TestCase):
 
     def test_market_researcher_specific_content(self):
         """Test market researcher has specific required content."""
-        persona = self.personas.get_persona("market_researcher")
+        persona = self.personas.get_persona("IP_Valuation_Specialist")
 
         # Should mention competitive analysis
         self.assertTrue(
@@ -491,14 +491,14 @@ class TestTODO8_StrategicConsultantPersona(unittest.TestCase):
 
     def test_strategic_consultant_persona_exists(self):
         """Test that strategic consultant persona is defined."""
-        persona = self.personas.get_persona("strategic_consultant")
+        persona = self.personas.get_persona("Patent_Researcher")
 
         self.assertIsNotNone(persona, "Strategic consultant persona should exist")
         self.assertIsInstance(persona, str, "Persona should be a string")
 
     def test_strategic_consultant_persona_quality(self):
         """Test strategic consultant persona meets quality criteria."""
-        persona = self.personas.get_persona("strategic_consultant")
+        persona = self.personas.get_persona("Patent_Researcher")
         validation = self.personas.validate_persona(persona)
 
         # Check all validation criteria
@@ -519,7 +519,7 @@ class TestTODO8_StrategicConsultantPersona(unittest.TestCase):
 
     def test_strategic_consultant_specific_content(self):
         """Test strategic consultant has specific required content."""
-        persona = self.personas.get_persona("strategic_consultant")
+        persona = self.personas.get_persona("Patent_Researcher")
 
         # Should mention strategy
         self.assertIn("strateg", persona.lower(),

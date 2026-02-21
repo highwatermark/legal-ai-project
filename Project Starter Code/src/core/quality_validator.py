@@ -130,7 +130,6 @@ class QualityValidator:
         - Count sentences by splitting on '.'
         - Cap the final score at 1.0
         """
-        score = 0.0
 
         # TODO 4: Implement coherence scoring algorithm
         # YOUR CODE HERE (approximately 30-40 lines)
@@ -142,8 +141,49 @@ class QualityValidator:
         # 5. Calculate final score (cap at 1.0)
 
         # BROKEN IMPLEMENTATION - FIX THIS!
-        logger.warning("TODO 4 not implemented: Coherence scoring broken")
-        return 0.0  # Always returns 0 - FIX THIS!
+        score = 0.0
+        content_lower = content.lower()
+
+        paragraphs = [p.strip() for p in content.split('\n\n') if len(p.strip()) > 0]
+        if len(paragraphs) >= 3:
+            score += 0.3
+        elif len(paragraphs) >= 2:
+            score += 0.2
+        elif len(paragraphs) >= 1:
+            score += 0.1
+
+        logical_connectors = [
+            'therefore', 'however', 'furthermore', 'moreover', 'consequently',
+            'additionally', 'nevertheless', 'in addition', 'as a result',
+            'accordingly', 'thus', 'hence', 'meanwhile', 'conversely'
+        ]
+        connector_count = sum(1 for conn in logical_connectors if conn in content_lower)
+        if connector_count >= 3:
+            score += 0.2
+        elif connector_count >= 1:
+            score += 0.1
+
+        structure_markers = [
+            'first', 'second', 'third', 'finally', 'next',
+            'in conclusion', 'to summarize', 'in summary',
+            '1.', '2.', '3.'
+        ]
+        structure_count = sum(1 for marker in structure_markers if marker in content_lower)
+        if structure_count >= 2:
+            score += 0.2
+        elif structure_count >= 1:
+            score += 0.1
+
+        sentences = [s.strip() for s in content.split('.') if len(s.strip()) > 10]
+        if len(sentences) >= 8:
+            score += 0.3
+        elif len(sentences) >= 5:
+            score += 0.2
+        elif len(sentences) >= 3:
+            score += 0.1
+
+        return min(score, 1.0)
+
 
     def calculate_groundedness_score(
         self,
@@ -190,7 +230,6 @@ class QualityValidator:
         - Check coverage of expected_elements list
         - Cap the final score at 1.0
         """
-        score = 0.0
 
         # TODO 5: Implement groundedness scoring algorithm
         # YOUR CODE HERE (approximately 35-45 lines)
@@ -203,8 +242,68 @@ class QualityValidator:
         # 6. Calculate final score (cap at 1.0)
 
         # BROKEN IMPLEMENTATION - FIX THIS!
-        logger.warning("TODO 5 not implemented: Groundedness scoring broken")
-        return 0.0  # Always returns 0 - FIX THIS!
+        score = 0.0
+        content_lower = content.lower()
+
+        section_keywords = {
+            "liability_assessment": [
+                "liability", "negligence", "breach", "duty", "causation",
+                "claim", "evidence", "plaintiff", "defendant", "infringement",
+                "standard of care", "proximate cause", "damages"
+            ],
+            "damage_calculation": [
+                "damages", "compensation", "calculation", "quantum", "lost profits",
+                "royalty", "economic", "financial", "valuation", "monetary",
+                "price erosion", "market share"
+            ],
+            "prior_art_analysis": [
+                "prior art", "patent", "novelty", "obviousness", "claims",
+                "invention", "disclosure", "reference", "validity", "prosecution",
+                "patent landscape", "citation"
+            ],
+            "competitive_landscape": [
+                "competitors", "market share", "positioning", "competitive",
+                "industry", "advantage", "differentiation", "licensing",
+                "market dynamics", "technology"
+            ],
+            "risk_assessment": [
+                "risk", "probability", "impact", "mitigation", "exposure",
+                "likelihood", "severity", "contingency", "vulnerability",
+                "threat", "uncertainty"
+            ],
+            "strategic_recommendations": [
+                "recommendation", "strategy", "implementation", "action",
+                "timeline", "priority", "resource", "objective", "milestone",
+                "initiative", "outcome"
+            ]
+        }
+
+        keywords = section_keywords.get(section_type, ["analysis", "assessment", "conclusion"])
+        keyword_hits = sum(1 for kw in keywords if kw in content_lower)
+        keyword_ratio = keyword_hits / len(keywords) if keywords else 0
+        score += min(keyword_ratio * 0.6, 0.4)
+
+        reasoning_indicators = [
+            "based on", "because", "due to", "as a result",
+            "evidence suggests", "analysis shows", "according to",
+            "demonstrates", "indicates", "supported by", "given that"
+        ]
+        reasoning_count = sum(1 for phrase in reasoning_indicators if phrase in content_lower)
+        if reasoning_count >= 4:
+            score += 0.35
+        elif reasoning_count >= 3:
+            score += 0.3
+        elif reasoning_count >= 2:
+            score += 0.2
+        elif reasoning_count >= 1:
+            score += 0.1
+
+        if expected_elements:
+            elements_found = sum(1 for elem in expected_elements if elem.lower() in content_lower)
+            elements_ratio = elements_found / len(expected_elements)
+            score += elements_ratio * 0.3
+
+        return min(score, 1.0)
 
     def _calculate_completeness_score(self, content: str, expected_elements: List[str]) -> float:
         """Calculate how completely the content addresses requirements."""

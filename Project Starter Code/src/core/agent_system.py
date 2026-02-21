@@ -15,6 +15,8 @@ from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass, field
 from datetime import datetime
 import asyncio
+import vertexai
+from vertexai.generative_models import GenerativeModel
 
 # Google AI imports
 from google import genai
@@ -107,9 +109,20 @@ class LegalIntelligenceAgent:
             # 4. Check the response
             # 5. Set self.initialized = True if successful
             # 6. Return True for success, False for failure
+            vertexai.init(project=self.project_id, location=self.location)
+            logger.info("Vertex AI SDK initialized")
 
-            logger.error("TODO 1 not implemented: Vertex AI initialization failed")
-            return False
+            self.model = GenerativeModel(self.model_name)
+            logger.info(f"Created GenerativeModel: {self.model_name}")
+
+            test_response = self.model.generate_content("Confirm you are operational. Reply with OK.")
+            if test_response and test_response.text:
+                logger.info(f"Vertex AI connection verified: {test_response.text[:50]}")
+                self.initialized = True
+                return True
+            else:
+                logger.error("Vertex AI test prompt returned empty response")
+                return False
 
         except Exception as e:
             logger.error(f"Failed to initialize Vertex AI: {str(e)}")
@@ -173,12 +186,53 @@ class LegalIntelligenceAgent:
         # 8. Return (content, token_usage, cost)
 
         # DUMMY IMPLEMENTATION - REPLACE THIS!
-        logger.warning("TODO 2 not implemented: Using dummy content")
-        dummy_content = f"[BROKEN] This is dummy content for {section_type}. The AI generation is not working."
-        dummy_tokens = TokenUsage(input_tokens=100, output_tokens=50, total_tokens=150)
-        dummy_cost = 0.01
+        max_retries = 3
+        last_error = None
 
-        return dummy_content, dummy_tokens, dummy_cost
+        for attempt in range(max_retries):
+            try:
+                logger.info(f"Generating {section_type} content (attempt {attempt + 1}/{max_retries})")
+
+                response = self.model.generate_content(
+                    prompt,
+                    generation_config={
+                        "temperature": 0.7,
+                        "top_p": 0.95,
+                        "top_k": 40,
+                        "max_output_tokens": 2048,
+                    }
+                )
+
+                content = response.text
+                self.total_attempts += 1
+
+                token_usage = TokenUsage(
+                    input_tokens=response.usage_metadata.prompt_token_count,
+                    output_tokens=response.usage_metadata.candidates_token_count,
+                    total_tokens=response.usage_metadata.total_token_count
+                )
+
+                cost = self._calculate_cost(token_usage)
+
+                self.token_usage_history.append(token_usage)
+                processing_time = time.time() - start_time
+                self.processing_times.append(processing_time)
+                self.success_count += 1
+
+                logger.info(f"Generated {section_type}: {token_usage.total_tokens} tokens, ${cost:.4f}")
+                return content, token_usage, cost
+
+            except Exception as e:
+                last_error = e
+                logger.warning(f"Generation attempt {attempt + 1} failed: {str(e)}")
+                if attempt < max_retries - 1:
+                    backoff = 2 ** attempt
+                    logger.info(f"Retrying in {backoff}s...")
+                    time.sleep(backoff)
+
+        self.total_attempts += 1
+        raise RuntimeError(f"Content generation failed after {max_retries} attempts: {str(last_error)}")
+
 
     async def generate_complete_report(self, scenario: LegalScenario) -> AnalysisReport:
         """
@@ -226,34 +280,117 @@ class LegalIntelligenceAgent:
         # 9. Assemble final AnalysisReport
 
         # DUMMY IMPLEMENTATION - REPLACE THIS!
-        logger.warning("TODO 3 not implemented: Generating dummy report")
-
-        dummy_sections = [
-            ReportSection(
-                type="liability_assessment",
-                title="Liability Assessment",
-                content="[BROKEN] Dummy liability content",
-                agent_type="business_analyst",
-                quality_score=0.5,
-                tokens_used=100,
-                cost=0.01,
-                timestamp=datetime.now().isoformat()
-            )
+        section_config = [
+            ("liability_assessment", "IP_Litigation_Expert"),
+            ("damage_calculation", "IP_Litigation_Expert"),
+            ("prior_art_analysis", "IP_Valuation_Specialist"),
+            ("competitive_landscape", "IP_Valuation_Specialist"),
+            ("risk_assessment", "Patent_Researcher"),
+            ("strategic_recommendations", "Patent_Researcher"),
         ]
 
-        dummy_report = AnalysisReport(
+        sections = []
+        total_cost = 0.0
+        total_tokens = 0
+
+        for section_type, agent_type in section_config:
+            try:
+                persona_text = self.personas.get_persona(agent_type)
+                expected_elements = self._get_expected_elements(section_type)
+
+                content, token_usage, cost = await asyncio.to_thread(
+                    self.generate_section_content,
+                    persona_text,
+                    section_type,
+                    scenario,
+                    sections
+                )
+
+                quality = self.quality_validator.validate_section(
+                    content, section_type, expected_elements
+                )
+
+                if quality.overall_score < 0.7:
+                    logger.warning(
+                        f"{section_type} quality {quality.overall_score:.2f} below threshold. "
+                        f"Retrying with enhanced prompt. Feedback: {quality.feedback}"
+                    )
+                    enhanced_persona = (
+                        persona_text + "\n\nIMPORTANT: Your previous response was insufficient. "
+                        f"Please ensure you address: {', '.join(quality.feedback)}. "
+                        "Provide detailed, well-structured analysis with specific evidence."
+                    )
+                    content, token_usage, cost = await asyncio.to_thread(
+                        self.generate_section_content,
+                        enhanced_persona,
+                        section_type,
+                        scenario,
+                        sections
+                    )
+                    quality = self.quality_validator.validate_section(
+                        content, section_type, expected_elements
+                    )
+
+                section = ReportSection(
+                    type=section_type,
+                    title=self._get_section_title(section_type),
+                    content=content,
+                    agent_type=agent_type,
+                    quality_score=quality.overall_score,
+                    tokens_used=token_usage.total_tokens,
+                    cost=cost,
+                    timestamp=datetime.now().isoformat()
+                )
+                sections.append(section)
+                total_cost += cost
+                total_tokens += token_usage.total_tokens
+
+                logger.info(
+                    f"Completed {section_type}: quality={quality.overall_score:.2f}, "
+                    f"tokens={token_usage.total_tokens}, cost=${cost:.4f}"
+                )
+
+            except Exception as e:
+                logger.error(f"Failed to generate {section_type}: {str(e)}")
+                sections.append(ReportSection(
+                    type=section_type,
+                    title=self._get_section_title(section_type),
+                    content=f"Error generating section: {str(e)}",
+                    agent_type=agent_type,
+                    quality_score=0.0,
+                    tokens_used=0,
+                    cost=0.0,
+                    timestamp=datetime.now().isoformat()
+                ))
+
+        processing_time = time.time() - start_time
+        executive_summary = self._generate_executive_summary(sections, scenario)
+        avg_quality = sum(s.quality_score for s in sections) / len(sections) if sections else 0
+
+        report = AnalysisReport(
             scenario=scenario,
-            sections=dummy_sections,
-            executive_summary="[BROKEN] System not working - TODOs not implemented",
-            total_cost=0.01,
-            total_tokens=100,
-            processing_time=1.0,
-            confidence_score=0.5,
+            sections=sections,
+            executive_summary=executive_summary,
+            total_cost=total_cost,
+            total_tokens=total_tokens,
+            processing_time=processing_time,
+            confidence_score=avg_quality,
             timestamp=datetime.now().isoformat(),
-            metadata={"error": "TODOs not implemented"}
+            metadata={
+                "model": self.model_name,
+                "sections_generated": len(sections),
+                "quality_scores": {s.type: s.quality_score for s in sections}
+            }
         )
 
-        return dummy_report
+        logger.info(
+            f"Report complete: {len(sections)} sections, "
+            f"confidence={avg_quality:.2f}, cost=${total_cost:.4f}, "
+            f"time={processing_time:.1f}s"
+        )
+
+        return report
+
 
     def _build_prompt(
         self,
@@ -376,11 +513,11 @@ Provide strategic recommendations by:
     def _get_agent_type(self, persona: str) -> str:
         """Determine agent type from persona text."""
         if "Business Analyst" in persona:
-            return "business_analyst"
+            return "IP_Litigation_Expert"
         elif "Market Research" in persona:
-            return "market_researcher"
+            return "IP_Valuation_Specialist"
         elif "Strategic" in persona:
-            return "strategic_consultant"
+            return "Patent_Researcher"
         else:
             return "unknown"
 

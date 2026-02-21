@@ -182,7 +182,7 @@ async def get_status():
         },
         analysis_count=system_state["analysis_count"],
         last_analysis=system_state["last_analysis"],
-        available_agents=["business_analyst", "market_researcher", "strategic_consultant"]
+        available_agents=["IP_Litigation_Expert", "IP_Valuation_Specialist", "Patent_Researcher"]
     )
 
 
@@ -280,7 +280,7 @@ async def list_agents():
         raise HTTPException(status_code=503, detail="Personas not loaded")
 
     agents = []
-    for agent_type in ["business_analyst", "market_researcher", "strategic_consultant"]:
+    for agent_type in ["IP_Litigation_Expert", "IP_Valuation_Specialist", "Patent_Researcher"]:
         persona = system_state["personas"].get_persona(agent_type)
         agents.append({
             "type": agent_type,
